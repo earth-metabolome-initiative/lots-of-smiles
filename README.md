@@ -12,9 +12,7 @@ A Rust library and command-line tool that assembles one large, deduplicated, can
 
 ## What the tool does
 
-The pipeline runs in four stages. It first ingests each source in full: PubChem is a CID-keyed merge-join of `CID-SMILES.gz` with `CID-InChI-Key.gz`, ZINC20 is the local 2D tranche tree, and Enamine REAL is the set of HAC-bucketed `.cxsmiles.bz2` files, downloaded if absent. It then applies a configurable, cost-ordered filter pass (see [Filtering](#filtering)). Surviving records are staged to disk as `INCHIKEY <TAB> PRIORITY <TAB> SMILES`, one thread per source, after which GNU `sort` orders them by `(InChIKey, priority)` under `LC_ALL=C` and a single streaming pass keeps the first line of each InChIKey run. This makes deduplication deterministic and first-wins, so earlier-configured sources take precedence on collisions. Canonicalization is a separate, optional final step in which the `lots-of-smiles canonicalize` subcommand parses each SMILES and rewrites it to a single canonical form (pure Rust, via `smiles-parser`), and a final `sort -u` deduplicates by canonical structure, collapsing the same molecule written differently across sources, which the per-source InChIKey pass cannot.
-
-The deduplication pipeline itself invokes no chemistry toolkit, because identity comes from each source's shipped InChIKey. Canonicalization is the one step that parses structures, which is why it is kept separate and optional.
+The pipeline ingests each source in full (PubChem as a CID merge-join of `CID-SMILES.gz` and `CID-InChI-Key.gz`, ZINC20 as the local 2D tranche tree, Enamine REAL as HAC-bucketed `.cxsmiles.bz2` files, downloaded if absent), applies a configurable filter pass (see [Filtering](#filtering)), and stages records as `INCHIKEY <TAB> PRIORITY <TAB> SMILES`. GNU `sort` then orders them under `LC_ALL=C` and a streaming pass keeps the first line of each InChIKey run, giving deterministic first-wins dedup where earlier-configured sources win collisions. Identity comes from each source's shipped InChIKey, so no chemistry toolkit is involved. Canonicalization is a separate, optional step (`lots-of-smiles canonicalize`, pure Rust via `smiles-parser`) followed by `sort -u`, which collapses the same molecule written differently across sources.
 
 ## Sources
 
@@ -106,11 +104,7 @@ Requires a `sort` binary on `PATH` (GNU coreutils) and `zstd`.
 
 ## Resource requirements
 
-Building the full corpus is a heavy, multi-day job, not a laptop task. The reference build used a 64-core workstation with 1 TB of RAM and a roughly 15 TB NVMe volume, taking about two days for the combined build plus a similar span for canonicalization.
-
-Storage is the main constraint, so use NVMe rather than spinning disk. The combined run stages on the order of 1 TB of intermediate TSV, needs comparable space again for the external sort, and about 330 GB for the Enamine `.bz2` downloads, so budget several terabytes of fast free space. Deduplication shells out to GNU `sort` with a large buffer (the reference run used `--sort-buffer 200G`), so more RAM means fewer on-disk merge passes. Canonicalization is embarrassingly parallel and CPU-bound at roughly a hundred times the cost of parsing, so many cores help. Expect close to a terabyte of initial downloads (Enamine REAL `.bz2` plus PubChem `CID-InChI-Key.gz`).
-
-Smaller experiments are far cheaper. A single source, or atom-count bounds that skip most Enamine HAC buckets, bring this down to hours.
+Building the full corpus is a heavy, multi-day job, not a laptop task. The reference build used a 64-core workstation, 1 TB of RAM, and a roughly 15 TB NVMe volume, and took about two days plus a similar span for canonicalization. Storage is the main constraint (use NVMe): the run stages around 1 TB of intermediate TSV, needs comparable space for the external sort, and about 330 GB for the Enamine downloads. More RAM means fewer `sort` merge passes, and canonicalization is CPU-bound at roughly a hundred times the cost of parsing, so cores help. A single source, or atom-count bounds that skip most Enamine HAC buckets, brings this down to hours.
 
 ## Licensing
 
@@ -121,9 +115,3 @@ The **dataset** is a separate artifact with its own terms. It is released under 
 ## Acknowledgements
 
 This work builds on PubChem (U.S. National Library of Medicine), ZINC20 (Irwin and Shoichet group, UCSF), and the Enamine REAL™ Database (Enamine Ltd). Please cite these original sources in any derived work. Parsing and canonicalization use [`smiles-parser`](https://github.com/earth-metabolome-initiative/smiles-parser).
-
-## Implementation notes
-
-- The `bzip2` decoder is the pure-Rust `libbz2-rs-sys` backend (no C toolchain).
-- Canonical output uses `smiles-parser`'s canonical form: Kekule rings and OpenSMILES extended tetrahedral stereo (for example, `[C@TH1H]`).
-- The radical filter uses a small built-in organic valence table with aromaticity-aware valence. It is best-effort and targets the common cases, which suffices for these catalogues of stable compounds.
