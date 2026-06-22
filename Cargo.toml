@@ -1,0 +1,74 @@
+[package]
+name = "lots-of-smiles"
+version = "0.1.0"
+edition = "2024"
+autobins = false
+authors = ["Luca Cappelletti"]
+license = "MIT"
+repository = "https://github.com/earth-metabolome-initiative/lots-of-smiles"
+description = "A pipeline that assembles a large deduplicated collection of real-world SMILES."
+readme = "README.md"
+
+[lib]
+name = "lots_of_smiles"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lots-of-smiles"
+path = "src/bin/lots-of-smiles.rs"
+
+[dependencies]
+smiles-parser = { git = "https://github.com/earth-metabolome-initiative/smiles-parser", rev = "1eecaa8f1e792bc7f15f3e68d3b6834a7a8b0feb", default-features = false }
+molecular-formulas = { version = "0.1.10", default-features = false }
+elements_rs = "0.2.7"
+clap = { version = "4", features = ["derive", "env"] }
+reqwest = { version = "0.13", default-features = false, features = ["blocking", "rustls", "cookies"] }
+flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
+bzip2 = "0.6"
+zstd = "0.13"
+thiserror = "2"
+log = "0.4"
+env_logger = "0.11"
+dotenvy = "0.15"
+indicatif = "0.18"
+ahash = "0.8"
+num_cpus = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Optional, enabled by the `zenodo` feature (Zenodo deposition support).
+tokio = { version = "1", features = ["rt-multi-thread", "time"], optional = true }
+zenodo-rs = { version = "0.2", default-features = false, features = ["rustls-tls", "indicatif"], optional = true }
+
+[features]
+default = []
+# Zenodo deposition support: the `publish::zenodo` module and the
+# `lots-of-smiles publish-zenodo` subcommand.
+zenodo = ["dep:zenodo-rs", "dep:tokio"]
+
+[dev-dependencies]
+tempfile = "3"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+pedantic = { level = "warn", priority = -1 }
+# Pedantic lints relaxed deliberately for this crate:
+missing_errors_doc = "allow"            # error conditions are described in prose
+missing_panics_doc = "allow"
+must_use_candidate = "allow"
+module_name_repetitions = "allow"
+doc_markdown = "allow"
+return_self_not_must_use = "allow"      # builder setters chain; must_use adds noise
+struct_excessive_bools = "allow"        # Filters/CLI are intentionally many boolean knobs
+struct_field_names = "allow"            # e.g. PubChem cid_* fields share a natural prefix
+# Numeric casts here are intentional and bounded (counts, priorities, indices):
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
