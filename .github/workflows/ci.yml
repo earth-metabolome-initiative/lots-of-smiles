@@ -8,13 +8,16 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: read
+
 jobs:
   check:
     name: fmt, clippy, test
     runs-on: ubuntu-latest
     steps:
       - name: Check out lots-of-smiles
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install system build dependencies
         run: sudo apt-get update && sudo apt-get install -y cmake
@@ -25,7 +28,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache cargo build
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
 
       - name: Formatting
         run: cargo fmt --all -- --check
